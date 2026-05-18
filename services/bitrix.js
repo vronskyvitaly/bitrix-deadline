@@ -18,6 +18,7 @@ async function callApi(method, params = {}) {
   }
 }
 
+//
 /**
  * Получить лид по ID со всеми кастомными полями
  */
