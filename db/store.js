@@ -23,7 +23,7 @@ async function init() {
   `);
   console.log('✅ PostgreSQL: таблица lead_states готова');
 }
-
+//
 /**
  * Получить состояние лида из БД
  * @param {string|number} leadId
