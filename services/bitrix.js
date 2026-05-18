@@ -59,22 +59,21 @@ async function getUsers() {
 
 /**
  * Сформировать дату дедлайна: сегодня + N дней
- * Битрикс24 поле "Дата/Время" принимает формат "YYYY-MM-DD HH:MM:SS"
+ * Битрикс24 поле "Дата/Время" принимает формат ISO 8601 "YYYY-MM-DDTHH:MM:SS"
  * @param {number} days
  * @returns {string}
  */
 function calcDeadline(days) {
   const date = new Date();
   date.setDate(date.getDate() + days);
-  date.setHours(23, 59, 0, 0); // конец рабочего дня
   const yyyy = date.getFullYear();
   const mm   = String(date.getMonth() + 1).padStart(2, '0');
   const dd   = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} 23:59:00`;
+  return `${yyyy}-${mm}-${dd}T23:59:00`;
 }
 
 /**
- * Получить сегодняшнюю дату в формате "YYYY-MM-DD HH:MM:SS" для Битрикс24
+ * Получить сегодняшнюю дату в формате ISO 8601 "YYYY-MM-DDTHH:MM:SS" для Битрикс24
  */
 function today() {
   const d = new Date();
@@ -84,7 +83,7 @@ function today() {
   const hh   = String(d.getHours()).padStart(2, '0');
   const min  = String(d.getMinutes()).padStart(2, '0');
   const ss   = String(d.getSeconds()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}`;
 }
 
 /**
@@ -92,9 +91,9 @@ function today() {
  * Работает со строками "YYYY-MM-DD" и "YYYY-MM-DD HH:MM:SS"
  */
 function isDateBefore(dateA, dateB) {
-  // Берём только дату без времени для сравнения
-  const a = new Date(dateA.split(' ')[0]);
-  const b = new Date(dateB.split(' ')[0]);
+  // Берём только дату без времени для сравнения (поддержка как "T" так и " " разделителей)
+  const a = new Date(dateA.split('T')[0].split(' ')[0]);
+  const b = new Date(dateB.split('T')[0].split(' ')[0]);
   return a < b;
 }
 

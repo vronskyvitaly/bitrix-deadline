@@ -36,7 +36,7 @@ async function handleLeadUpdate(leadId) {
   const assignedUserId  = lead.ASSIGNED_BY_ID;
 
   // Читаем предыдущее состояние из хранилища
-  const prevState = store.getLeadState(leadId);
+  const prevState = await store.getLeadState(leadId);
 
   // ─────────────────────────────────────────────
   // КЕЙС 1: Лид впервые попал в менеджерскую стадию
@@ -71,7 +71,7 @@ async function handleLeadUpdate(leadId) {
     }
 
     // Сохраняем новое состояние
-    store.saveLeadState(leadId, {
+    await store.saveLeadState(leadId, {
       stageId: currentStage,
       deadline: newDeadline,
       takenDate: takenDate,
@@ -92,7 +92,7 @@ async function handleLeadUpdate(leadId) {
     if (!oldDeadlinePassed) {
       // Дедлайн ещё не прошёл — менеджер скорректировал заранее, разрешаем
       console.log(`✅ Дедлайн изменён до истечения — разрешено`);
-      store.saveLeadState(leadId, {
+      await store.saveLeadState(leadId, {
         ...prevState,
         stageId: currentStage,
         deadline: currentDeadline,
@@ -128,7 +128,7 @@ async function handleLeadUpdate(leadId) {
     // ✅ Причина указана — разрешаем продление
     console.log(`✅ Дедлайн продлён с причиной: "${currentReason}"`);
 
-    store.saveLeadState(leadId, {
+    await store.saveLeadState(leadId, {
       ...prevState,
       stageId: currentStage,
       deadline: currentDeadline,
@@ -151,13 +151,13 @@ async function handleLeadUpdate(leadId) {
   // По умолчанию: просто обновляем стадию в хранилище
   // ─────────────────────────────────────────────
   if (prevState) {
-    store.saveLeadState(leadId, {
+    await store.saveLeadState(leadId, {
       ...prevState,
       stageId: currentStage,
     });
   } else {
     // Первое появление лида — сохраняем базовое состояние
-    store.saveLeadState(leadId, {
+    await store.saveLeadState(leadId, {
       stageId: currentStage,
       deadline: currentDeadline,
       takenDate: lead[config.fields.takenDate] || null,
