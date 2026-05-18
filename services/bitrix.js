@@ -57,30 +57,44 @@ async function getUsers() {
 }
 
 /**
- * Сформировать дату дедлайна: сегодня + N дней в формате Битрикс24
+ * Сформировать дату дедлайна: сегодня + N дней
+ * Битрикс24 поле "Дата/Время" принимает формат "YYYY-MM-DD HH:MM:SS"
  * @param {number} days
- * @returns {string} — строка формата "YYYY-MM-DD"
+ * @returns {string}
  */
 function calcDeadline(days) {
   const date = new Date();
   date.setDate(date.getDate() + days);
-  return date.toISOString().split('T')[0];
+  date.setHours(23, 59, 0, 0); // конец рабочего дня
+  const yyyy = date.getFullYear();
+  const mm   = String(date.getMonth() + 1).padStart(2, '0');
+  const dd   = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} 23:59:00`;
 }
 
 /**
- * Получить сегодняшнюю дату в формате "YYYY-MM-DD"
+ * Получить сегодняшнюю дату в формате "YYYY-MM-DD HH:MM:SS" для Битрикс24
  */
 function today() {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, '0');
+  const dd   = String(d.getDate()).padStart(2, '0');
+  const hh   = String(d.getHours()).padStart(2, '0');
+  const min  = String(d.getMinutes()).padStart(2, '0');
+  const ss   = String(d.getSeconds()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
 }
 
 /**
  * Сравнить две даты: вернуть true если dateA < dateB
- * @param {string} dateA — "YYYY-MM-DD"
- * @param {string} dateB — "YYYY-MM-DD"
+ * Работает со строками "YYYY-MM-DD" и "YYYY-MM-DD HH:MM:SS"
  */
 function isDateBefore(dateA, dateB) {
-  return new Date(dateA) < new Date(dateB);
+  // Берём только дату без времени для сравнения
+  const a = new Date(dateA.split(' ')[0]);
+  const b = new Date(dateB.split(' ')[0]);
+  return a < b;
 }
 
 module.exports = {
