@@ -64,9 +64,11 @@ async function handleLeadUpdate(leadId) {
 
     // Уведомляем менеджера
     if (assignedUserId) {
+      const leadUrl = `https://royalcargo.bitrix24.ru/crm/lead/details/${leadId}/`;
       const msg = `📋 Лид #${leadId} (${lead.TITLE || 'без названия'}) взят в работу.\n` +
                   `⏰ Дедлайн: ${newDeadline} (${config.deadlineDays} дней).\n` +
-                  `Не забудьте отправить договор и все необходимые документы.`;
+                  `Не забудьте отправить договор и все необходимые документы.\n` +
+                  `[url=${leadUrl}]Открыть лид[/url]`;
       await bitrix.sendNotification(assignedUserId, msg).catch(console.error);
     }
 
