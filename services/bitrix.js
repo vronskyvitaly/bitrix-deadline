@@ -59,17 +59,26 @@ async function getUsers() {
 
 /**
  * Сформировать дату дедлайна: сегодня + N дней
- * Битрикс24 поле "Дата/Время" принимает формат ISO 8601 "YYYY-MM-DDTHH:MM:SS"
- * @param {number} days
- * @returns {string}
+ * Считает N рабочих дней вперёд (пн-пт), дедлайн в 18:00
+ * @param {number} days — количество рабочих дней
+ * @returns {string} ISO 8601 "YYYY-MM-DDTHH:MM:SS"
  */
 function calcDeadline(days) {
   const date = new Date();
-  date.setDate(date.getDate() + days);
+  let workingDaysAdded = 0;
+
+  while (workingDaysAdded < days) {
+    date.setDate(date.getDate() + 1);
+    const dow = date.getDay(); // 0=вс, 6=сб
+    if (dow !== 0 && dow !== 6) {
+      workingDaysAdded++;
+    }
+  }
+
   const yyyy = date.getFullYear();
   const mm   = String(date.getMonth() + 1).padStart(2, '0');
   const dd   = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}T23:59:00`;
+  return `${yyyy}-${mm}-${dd}T18:00:00`;
 }
 
 /**
