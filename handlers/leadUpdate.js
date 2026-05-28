@@ -118,7 +118,9 @@ async function handleLeadUpdate(leadId) {
       // Уведомляем менеджера
       if (assignedUserId) {
         const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
-        const msg = `⚠️ Лид #${leadId}: изменение дедлайна отклонено — прежний срок (${prevState.deadline}) уже истёк.\n\n` +
+        const deadlineFormatted = bitrix.formatDate(prevState.deadline);
+        const msg = `⚠️ Лид #${leadId}: изменение дедлайна отклонено.\n` +
+                    `Прежний срок [b]${deadlineFormatted}[/b] уже истёк.\n\n` +
                     `Чтобы продлить дедлайн:\n` +
                     `1. [url=${leadUrl}]Откройте лид #${leadId}[/url]\n` +
                     `2. Заполните поле [b]«Причина продления»[/b]\n` +

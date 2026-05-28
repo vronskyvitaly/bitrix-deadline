@@ -121,6 +121,23 @@ function isDateBefore(dateA, dateB) {
   return a < b;
 }
 
+const MONTHS_RU = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+/**
+ * Форматировать дату в читаемый вид: "27 мая 2026 в 18:00"
+ */
+function formatDate(dateStr) {
+  if (!dateStr) return dateStr;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  const day   = d.getDate();
+  const month = MONTHS_RU[d.getMonth()];
+  const year  = d.getFullYear();
+  const hh    = String(d.getHours()).padStart(2, '0');
+  const mm    = String(d.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year} в ${hh}:${mm}`;
+}
+
 module.exports = {
   callApi,
   getLead,
@@ -130,4 +147,5 @@ module.exports = {
   calcDeadline,
   today,
   isDateBefore,
+  formatDate,
 };
