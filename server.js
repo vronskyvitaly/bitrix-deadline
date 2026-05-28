@@ -67,6 +67,24 @@ app.post('/webhook', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+// Очистка БД (временный endpoint)
+// ─────────────────────────────────────────────
+app.delete('/admin/leads', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    });
+    const result = await pool.query('TRUNCATE TABLE lead_states');
+    await pool.end();
+    res.json({ ok: true, message: 'Таблица lead_states очищена' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
 // Просмотр данных в БД (последние 50 лидов)
 // ─────────────────────────────────────────────
 app.get('/admin/leads', async (req, res) => {
