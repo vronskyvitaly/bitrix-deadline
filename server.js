@@ -35,20 +35,33 @@ app.post('/webhook', async (req, res) => {
     });
   }
 
-  // Новый лид — сохранить начальное состояние в хранилище
-  if (event === 'ONCRMLREADADD') {
+  // Новый лид создан вручную — обрабатываем так же как обновление
+  if (event === 'ONCRMLEADADD') {
     const leadId = body?.data?.FIELDS?.ID;
-    if (leadId) {
-      const { getLeadState, saveLeadState } = require('./db/store');
-      const bitrix = require('./services/bitrix');
-      bitrix.getLead(leadId).then(lead => {
-        saveLeadState(leadId, {
-          stageId: lead.STATUS_ID,
-          deadline: lead[config.fields.deadline] || null,
-          takenDate: lead[config.fields.takenDate] || null,
-        });
-      }).catch(console.error);
-    }
+    if (!leadId) return;
+    handleLeadUpdate(leadId).catch(err => {
+      console.error(`Ошибка обработки нового лида #${leadId}:`, err.message);
+    });
+  }
+});
+
+// ─────────────────────────────────────────────
+// Просмотр данных в БД (последние 50 лидов)
+// ─────────────────────────────────────────────
+app.get('/admin/leads', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    });
+    const result = await pool.query(
+      'SELECT lead_id, stage_id, deadline, taken_date, updated_at FROM lead_states ORDER BY updated_at DESC LIMIT 50'
+    );
+    await pool.end();
+    res.json({ count: result.rows.length, leads: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
