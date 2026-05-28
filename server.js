@@ -5,6 +5,16 @@ const store = require('./db/store');
 
 const app = express();
 
+// Защита от дублей: Bitrix24 при создании лида шлёт LEADADD + LEADUPDATE одновременно.
+// Храним ID лидов, обработка которых уже запущена (10 секунд TTL).
+const processingLeads = new Map();
+function deduplicate(leadId) {
+  if (processingLeads.has(leadId)) return false;
+  processingLeads.set(leadId, true);
+  setTimeout(() => processingLeads.delete(leadId), 10000);
+  return true;
+}
+
 // Парсим тело запроса — Битрикс шлёт application/x-www-form-urlencoded
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -22,25 +32,18 @@ app.post('/webhook', async (req, res) => {
 
   console.log(`\n📩 Вебхук получен: ${event || 'неизвестное событие'}`);
 
-  // Обрабатываем только обновление лида
-  if (event === 'ONCRMLEADUPDATE') {
+  if (event === 'ONCRMLEADUPDATE' || event === 'ONCRMLEADADD') {
     const leadId = body?.data?.FIELDS?.ID;
     if (!leadId) {
       console.warn('⚠️  В теле вебхука нет ID лида');
       return;
     }
-    // Асинхронная обработка после ответа 200
+    if (!deduplicate(leadId)) {
+      console.log(`⏭️  Лид #${leadId} уже обрабатывается, пропускаем дубль`);
+      return;
+    }
     handleLeadUpdate(leadId).catch(err => {
       console.error(`Ошибка обработки лида #${leadId}:`, err.message);
-    });
-  }
-
-  // Новый лид создан вручную — обрабатываем так же как обновление
-  if (event === 'ONCRMLEADADD') {
-    const leadId = body?.data?.FIELDS?.ID;
-    if (!leadId) return;
-    handleLeadUpdate(leadId).catch(err => {
-      console.error(`Ошибка обработки нового лида #${leadId}:`, err.message);
     });
   }
 });
