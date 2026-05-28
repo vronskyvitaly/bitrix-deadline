@@ -1,21 +1,36 @@
 const axios = require('axios');
 const config = require('../config');
 
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 2000;
+
 /**
- * Универсальный вызов Bitrix24 REST API
+ * Универсальный вызов Bitrix24 REST API с повторными попытками при сетевых ошибках
  */
 async function callApi(method, params = {}) {
   const url = `${config.bitrix.apiUrl}/${method}`;
-  try {
-    const response = await axios.post(url, params);
-    if (response.data.error) {
-      throw new Error(`Bitrix API Error [${method}]: ${response.data.error_description}`);
+  let lastErr;
+
+  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+    try {
+      const response = await axios.post(url, params, { timeout: 10000 });
+      if (response.data.error) {
+        throw new Error(`Bitrix API Error [${method}]: ${response.data.error_description}`);
+      }
+      return response.data.result;
+    } catch (err) {
+      lastErr = err;
+      const isNetworkError = ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND'].includes(err.code);
+      if (isNetworkError && attempt < RETRY_ATTEMPTS) {
+        console.error(`⚠️ ${method} попытка ${attempt}/${RETRY_ATTEMPTS} не удалась (${err.code}), повтор через ${RETRY_DELAY_MS}ms...`);
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
+      console.error(`❌ Ошибка вызова ${method}:`, err.message);
+      throw err;
     }
-    return response.data.result;
-  } catch (err) {
-    console.error(`❌ Ошибка вызова ${method}:`, err.message);
-    throw err;
   }
+  throw lastErr;
 }
 
 //
