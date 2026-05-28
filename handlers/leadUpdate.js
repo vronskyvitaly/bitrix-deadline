@@ -64,7 +64,7 @@ async function handleLeadUpdate(leadId) {
 
     // Уведомляем менеджера
     if (assignedUserId) {
-      const leadUrl = `https://royalcargo.bitrix24.ru/crm/lead/details/${leadId}/`;
+      const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
       const msg = `📋 Лид #${leadId} (${lead.TITLE || 'без названия'}) взят в работу.\n` +
                   `⏰ Дедлайн: ${newDeadline} (${config.deadlineDays} дней).\n` +
                   `Не забудьте отправить договор и все необходимые документы.\n` +
@@ -117,9 +117,12 @@ async function handleLeadUpdate(leadId) {
 
       // Уведомляем менеджера
       if (assignedUserId) {
-        const msg = `⚠️ Лид #${leadId}: изменение дедлайна отклонено.\n` +
-                    `Прежний дедлайн (${prevState.deadline}) уже истёк.\n` +
-                    `Чтобы продлить срок, заполните поле «${config.fields.extendReason}» с объяснением причины, затем измените дату.`;
+        const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
+        const msg = `⚠️ Лид #${leadId}: изменение дедлайна отклонено — прежний срок (${prevState.deadline}) уже истёк.\n\n` +
+                    `Чтобы продлить дедлайн:\n` +
+                    `1. [url=${leadUrl}]Откройте лид #${leadId}[/url]\n` +
+                    `2. Заполните поле [b]«Причина продления»[/b]\n` +
+                    `3. После этого измените дату дедлайна`;
         await bitrix.sendNotification(assignedUserId, msg).catch(console.error);
       }
 
