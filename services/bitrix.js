@@ -115,10 +115,19 @@ function today() {
  * Работает со строками "YYYY-MM-DD" и "YYYY-MM-DD HH:MM:SS"
  */
 function isDateBefore(dateA, dateB) {
-  // Берём только дату без времени для сравнения (поддержка как "T" так и " " разделителей)
   const a = new Date(dateA.split('T')[0].split(' ')[0]);
   const b = new Date(dateB.split('T')[0].split(' ')[0]);
   return a < b;
+}
+
+/**
+ * Проверить, является ли сегодня последним днём дедлайна
+ * (то есть дата дедлайна совпадает с сегодняшней датой)
+ */
+function isDeadlineDay(deadlineStr, todayStr) {
+  const d = deadlineStr.split('T')[0].split(' ')[0];
+  const t = todayStr.split('T')[0].split(' ')[0];
+  return d === t;
 }
 
 const MONTHS_RU = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
@@ -147,5 +156,6 @@ module.exports = {
   calcDeadline,
   today,
   isDateBefore,
+  isDeadlineDay,
   formatDate,
 };

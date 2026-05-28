@@ -94,8 +94,34 @@ async function handleLeadUpdate(leadId) {
     const oldDeadlinePassed = bitrix.isDateBefore(prevState.deadline, today);
 
     if (!oldDeadlinePassed) {
-      // Дедлайн ещё не прошёл — менеджер скорректировал заранее, разрешаем
-      console.log(`✅ Дедлайн изменён до истечения — разрешено`);
+      // Дедлайн ещё не прошёл — разрешаем только в последний день (день дедлайна)
+      const isLastDay = bitrix.isDeadlineDay(prevState.deadline, today);
+
+      if (!isLastDay) {
+        // ❌ Слишком рано — откатываем
+        console.log(`❌ Изменение дедлайна до последнего дня — запрещено. Откатываем.`);
+        try {
+          await bitrix.updateLead(leadId, {
+            [config.fields.deadline]: prevState.deadline,
+          });
+        } catch (err) {
+          console.error('Ошибка при откате дедлайна:', err.message);
+        }
+
+        if (assignedUserId) {
+          const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
+          const deadlineFormatted = bitrix.formatDate(prevState.deadline);
+          const msg = `⛔ Лид #${leadId}: изменение дедлайна запрещено.\n` +
+                      `Дедлайн можно изменить только в последний день срока — [b]${deadlineFormatted}[/b].\n\n` +
+                      `Если нужно продление раньше срока — обратитесь к руководителю.\n` +
+                      `[url=${leadUrl}]Открыть лид #${leadId}[/url]`;
+          await bitrix.sendNotification(assignedUserId, msg).catch(console.error);
+        }
+        return;
+      }
+
+      // ✅ Последний день дедлайна — разрешаем
+      console.log(`✅ Дедлайн изменён в последний день — разрешено`);
       await store.saveLeadState(leadId, {
         ...prevState,
         stageId: currentStage,
