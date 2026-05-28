@@ -39,13 +39,14 @@ async function handleLeadUpdate(leadId) {
   const prevState = await store.getLeadState(leadId);
 
   // ─────────────────────────────────────────────
-  // КЕЙС 1: Лид впервые попал в менеджерскую стадию
+  // КЕЙС 1: Лид попал в менеджерскую стадию
+  // Срабатывает при любом переходе в менеджерскую стадию:
+  // из необработанного, из другой менеджерской, или первое появление лида
   // ─────────────────────────────────────────────
   const isManagerStage = config.managerStages.includes(currentStage);
-  const wasManagerStage = prevState ? config.managerStages.includes(prevState.stageId) : false;
   const stageChanged = !prevState || prevState.stageId !== currentStage;
 
-  if (isManagerStage && stageChanged && !wasManagerStage) {
+  if (isManagerStage && stageChanged) {
     console.log(`🔄 Лид #${leadId} перемещён в менеджерскую стадию "${currentStage}"`);
 
     const takenDate   = bitrix.today();
@@ -55,7 +56,7 @@ async function handleLeadUpdate(leadId) {
       await bitrix.updateLead(leadId, {
         [config.fields.takenDate]: takenDate,
         [config.fields.deadline]: newDeadline,
-        [config.fields.extendReason]: '', // сбрасываем причину
+        [config.fields.extendReason]: '', // сбрасываем причину при переназначении
       });
       console.log(`✅ Дедлайн установлен: ${newDeadline} (взят в работу: ${takenDate})`);
     } catch (err) {
@@ -65,8 +66,9 @@ async function handleLeadUpdate(leadId) {
     // Уведомляем менеджера
     if (assignedUserId) {
       const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
+      const deadlineFormatted = bitrix.formatDate(newDeadline);
       const msg = `📋 Лид #${leadId} (${lead.TITLE || 'без названия'}) взят в работу.\n` +
-                  `⏰ Дедлайн: ${newDeadline} (${config.deadlineDays} дней).\n` +
+                  `⏰ Дедлайн: ${deadlineFormatted}.\n` +
                   `Не забудьте отправить договор и все необходимые документы.\n` +
                   `[url=${leadUrl}]Открыть лид[/url]`;
       await bitrix.sendNotification(assignedUserId, msg).catch(console.error);
