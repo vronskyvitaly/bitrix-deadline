@@ -32,18 +32,36 @@ app.post('/webhook', async (req, res) => {
 
   console.log(`\n📩 Вебхук получен: ${event || 'неизвестное событие'}`);
 
-  if (event === 'ONCRMLEADUPDATE' || event === 'ONCRMLEADADD') {
+  // Обновление лида — основной сценарий
+  if (event === 'ONCRMLEADUPDATE') {
     const leadId = body?.data?.FIELDS?.ID;
-    if (!leadId) {
-      console.warn('⚠️  В теле вебхука нет ID лида');
-      return;
-    }
+    if (!leadId) { console.warn('⚠️  В теле вебхука нет ID лида'); return; }
     if (!deduplicate(leadId)) {
       console.log(`⏭️  Лид #${leadId} уже обрабатывается, пропускаем дубль`);
       return;
     }
     handleLeadUpdate(leadId).catch(err => {
       console.error(`Ошибка обработки лида #${leadId}:`, err.message);
+    });
+  }
+
+  // Создание лида — обрабатываем ТОЛЬКО если создан сразу в колонке менеджера
+  if (event === 'ONCRMLEADADD') {
+    const leadId  = body?.data?.FIELDS?.ID;
+    const stageId = body?.data?.FIELDS?.STATUS_ID;
+    if (!leadId) return;
+
+    if (!config.managerStages.includes(stageId)) {
+      console.log(`⏭️  Лид #${leadId} создан в стадии "${stageId}" (не менеджерская) — дедлайн не ставим`);
+      return;
+    }
+
+    if (!deduplicate(leadId)) {
+      console.log(`⏭️  Лид #${leadId} уже обрабатывается, пропускаем дубль`);
+      return;
+    }
+    handleLeadUpdate(leadId).catch(err => {
+      console.error(`Ошибка обработки нового лида #${leadId}:`, err.message);
     });
   }
 });
