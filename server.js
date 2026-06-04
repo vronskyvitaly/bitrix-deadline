@@ -2,6 +2,7 @@ const express = require('express');
 const config = require('./config');
 const { handleLeadUpdate } = require('./handlers/leadUpdate');
 const store = require('./db/store');
+const { scheduleDeadlineReminders } = require('./jobs/deadlineReminder');
 
 const app = express();
 
@@ -67,6 +68,15 @@ app.post('/webhook', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+// Ручной запуск проверки дедлайнов (для тестирования)
+// ─────────────────────────────────────────────
+app.post('/admin/run-reminders', async (req, res) => {
+  const { sendDeadlineReminders } = require('./jobs/deadlineReminder');
+  res.json({ ok: true, message: 'Запущено' });
+  sendDeadlineReminders().catch(console.error);
+});
+
+// ─────────────────────────────────────────────
 // Просмотр данных в БД (последние 50 лидов)
 // ─────────────────────────────────────────────
 app.get('/admin/leads', async (req, res) => {
@@ -106,6 +116,8 @@ store.init().catch(err => {
   console.error('❌ Ошибка подключения к PostgreSQL:', err.message);
   process.exit(1);
 });
+
+scheduleDeadlineReminders();
 
 app.listen(config.server.port, () => {
   console.log('');
