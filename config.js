@@ -24,6 +24,9 @@ const config = {
   // Количество дней дедлайна
   deadlineDays: parseInt(process.env.DEADLINE_DAYS || '5', 10),
 
+  // ID руководителя в Битрикс24 для уведомлений о переносе дедлайнов
+  supervisorUserId: process.env.SUPERVISOR_USER_ID ? parseInt(process.env.SUPERVISOR_USER_ID, 10) : null,
+
   server: {
     port: parseInt(process.env.PORT || '3000', 10),
     webhookSecret: process.env.WEBHOOK_SECRET || '',

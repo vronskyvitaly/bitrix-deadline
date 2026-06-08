@@ -18,6 +18,75 @@ const config = require('../config');
 const bitrix = require('../services/bitrix');
 const store = require('../db/store');
 
+/**
+ * Применить продление дедлайна: проверить лимит, записать комментарий,
+ * очистить поле причины, уведомить руководителя.
+ */
+async function applyDeadlineExtension({ leadId, assignedUserId, prevState, currentStage, currentDeadline, currentReason }) {
+  const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
+
+  // Проверяем лимит: нельзя продлить более чем на config.deadlineDays рабочих дней от сегодня
+  const maxDeadline = bitrix.calcDeadline(config.deadlineDays);
+  const maxDateStr  = maxDeadline.split('T')[0];
+  const newDateStr  = (currentDeadline || '').split('T')[0].split(' ')[0];
+
+  if (newDateStr > maxDateStr) {
+    console.log(`❌ Новый дедлайн ${newDateStr} превышает лимит ${maxDateStr}. Откатываем.`);
+    try {
+      await bitrix.updateLead(leadId, { [config.fields.deadline]: prevState.deadline });
+    } catch (err) {
+      console.error('Ошибка при откате дедлайна:', err.message);
+    }
+    if (assignedUserId) {
+      const maxFormatted = bitrix.formatDate(maxDeadline);
+      const msg = `⛔ Лид #${leadId}: нельзя продлить дедлайн более чем на ${config.deadlineDays} рабочих дней.\n` +
+                  `Максимальная дата: [b]${maxFormatted}[/b].\n` +
+                  `[url=${leadUrl}]Открыть лид #${leadId}[/url]`;
+      await bitrix.sendNotification(assignedUserId, msg).catch(console.error);
+    }
+    return;
+  }
+
+  // Получаем имя менеджера для комментария
+  let managerName = assignedUserId ? `ID ${assignedUserId}` : 'Менеджер';
+  try {
+    const user = await bitrix.getUser(assignedUserId);
+    if (user) managerName = [user.NAME, user.LAST_NAME].filter(Boolean).join(' ') || managerName;
+  } catch {}
+
+  const prevFormatted = bitrix.formatDate(prevState.deadline);
+  const newFormatted  = bitrix.formatDate(currentDeadline);
+  const daysAdded     = bitrix.countWorkingDays(bitrix.today(), currentDeadline);
+  const nowFormatted  = bitrix.formatDate(bitrix.today());
+
+  // Записываем комментарий в историю лида
+  const comment = `📅 Дедлайн продлён\n` +
+                  `Кто: ${managerName}\n` +
+                  `Когда: ${nowFormatted}\n` +
+                  `Было: ${prevFormatted}\n` +
+                  `Стало: ${newFormatted}\n` +
+                  `Продлено на: ${daysAdded} раб. дн.\n` +
+                  `Причина: ${currentReason}`;
+  await bitrix.addLeadComment(leadId, comment).catch(err => console.error('Ошибка добавления комментария:', err.message));
+
+  // Очищаем поле причины продления
+  await bitrix.updateLead(leadId, { [config.fields.extendReason]: '' }).catch(console.error);
+
+  // Сохраняем новое состояние
+  await store.saveLeadState(leadId, { ...prevState, stageId: currentStage, deadline: currentDeadline });
+  console.log(`✅ Дедлайн продлён на ${daysAdded} раб. дн., комментарий записан, причина очищена.`);
+
+  // Уведомляем руководителя
+  if (config.supervisorUserId) {
+    const supervisorMsg = `ℹ️ ${managerName} продлил дедлайн по лиду #${leadId}.\n` +
+                          `Было: ${prevFormatted} → Стало: ${newFormatted}\n` +
+                          `Продлено на: ${daysAdded} раб. дн.\n` +
+                          `Причина: ${currentReason}\n` +
+                          `[url=${leadUrl}]Открыть лид #${leadId}[/url]`;
+    await bitrix.sendNotification(config.supervisorUserId, supervisorMsg).catch(console.error);
+  }
+}
+
 async function handleLeadUpdate(leadId) {
   console.log(`\n📥 Обработка обновления лида #${leadId}`);
 
@@ -108,16 +177,31 @@ async function handleLeadUpdate(leadId) {
           console.error('Ошибка при откате дедлайна:', err.message);
         }
 
+        const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
+        const deadlineFormatted = bitrix.formatDate(prevState.deadline);
+
         if (assignedUserId) {
-          const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
-          const deadlineFormatted = bitrix.formatDate(prevState.deadline);
           const msg = `⛔ Лид #${leadId}: изменение дедлайна запрещено.\n` +
                       `Дедлайн можно изменить только в последний день срока — [b]${deadlineFormatted}[/b].\n\n` +
-                      `Если нужно продление раньше срока:\n` +
+                      `Чтобы перенести дедлайн:\n` +
                       `1. [url=${leadUrl}]Откройте лид #${leadId}[/url]\n` +
-                      `2. Заполните поле [b]«Причина продления»[/b]\n` +
-                      `3. Обратитесь к руководителю за разрешением`;
+                      `2. В последний день срока заполните поле [b]«Причина продления»[/b]\n` +
+                      `3. После этого измените дату дедлайна`;
           await bitrix.sendNotification(assignedUserId, msg).catch(console.error);
+        }
+
+        // Уведомляем руководителя о попытке раннего переноса
+        if (config.supervisorUserId) {
+          let managerName = assignedUserId ? `ID ${assignedUserId}` : 'Менеджер';
+          try {
+            const user = await bitrix.getUser(assignedUserId);
+            if (user) managerName = [user.NAME, user.LAST_NAME].filter(Boolean).join(' ') || managerName;
+          } catch {}
+          const supervisorMsg = `⚠️ ${managerName} попытался перенести дедлайн по лиду #${leadId} раньше срока.\n` +
+                                `Текущий дедлайн: [b]${deadlineFormatted}[/b]\n` +
+                                `Изменение отклонено.\n` +
+                                `[url=${leadUrl}]Открыть лид #${leadId}[/url]`;
+          await bitrix.sendNotification(config.supervisorUserId, supervisorMsg).catch(console.error);
         }
         return;
       }
@@ -148,13 +232,9 @@ async function handleLeadUpdate(leadId) {
         return;
       }
 
-      // ✅ Последний день + причина указана — разрешаем
-      console.log(`✅ Дедлайн изменён в последний день с причиной: "${currentReason}"`);
-      await store.saveLeadState(leadId, {
-        ...prevState,
-        stageId: currentStage,
-        deadline: currentDeadline,
-      });
+      // ✅ Последний день + причина — проверяем лимит 5 рабочих дней
+      console.log(`✅ Последний день, причина указана. Проверяем лимит.`);
+      await applyDeadlineExtension({ leadId, assignedUserId, prevState, currentStage, currentDeadline, currentReason });
       return;
     }
 
@@ -188,25 +268,9 @@ async function handleLeadUpdate(leadId) {
       return;
     }
 
-    // ✅ Причина указана — разрешаем продление
-    console.log(`✅ Дедлайн продлён с причиной: "${currentReason}"`);
-
-    await store.saveLeadState(leadId, {
-      ...prevState,
-      stageId: currentStage,
-      deadline: currentDeadline,
-    });
-
-    // Уведомляем руководителя (первый менеджерский пользователь или отдельный ID)
-    // Можно добавить ID руководителя в .env и подключить здесь
-    if (assignedUserId) {
-      const msg = `ℹ️ Менеджер продлил дедлайн по лиду #${leadId}.\n` +
-                  `Новый дедлайн: ${currentDeadline}\n` +
-                  `Причина: ${currentReason}`;
-      // TODO: Отправить руководителю — добавьте MANAGER_USER_ID в .env
-      console.log(`📨 Уведомление руководителю:`, msg);
-    }
-
+    // ✅ Причина указана — проверяем лимит 5 рабочих дней
+    console.log(`✅ Дедлайн истёк, причина указана. Проверяем лимит.`);
+    await applyDeadlineExtension({ leadId, assignedUserId, prevState, currentStage, currentDeadline, currentReason });
     return;
   }
 

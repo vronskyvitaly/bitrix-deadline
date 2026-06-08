@@ -66,10 +66,50 @@ async function sendNotification(userId, message) {
 }
 
 /**
- * Получить список пользователей (для поиска менеджера по стадии)
+ * Получить пользователя по ID
+ */
+async function getUser(userId) {
+  const result = await callApi('user.get', { ID: userId });
+  return Array.isArray(result) ? result[0] : result;
+}
+
+/**
+ * Получить список пользователей
  */
 async function getUsers() {
   return await callApi('user.get', { ACTIVE: true });
+}
+
+/**
+ * Добавить комментарий в ленту событий лида
+ */
+async function addLeadComment(leadId, comment) {
+  return await callApi('crm.timeline.comment.add', {
+    fields: {
+      ENTITY_ID: leadId,
+      ENTITY_TYPE: 'lead',
+      COMMENT: comment,
+    }
+  });
+}
+
+/**
+ * Считает рабочие дни (пн-пт) от fromStr до toStr не включая fromStr
+ */
+function countWorkingDays(fromStr, toStr) {
+  const from = new Date(fromStr.split('T')[0].split(' ')[0]);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(toStr.split('T')[0].split(' ')[0]);
+  to.setHours(0, 0, 0, 0);
+  let count = 0;
+  const cur = new Date(from);
+  cur.setDate(cur.getDate() + 1);
+  while (cur <= to) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
 }
 
 /**
@@ -152,8 +192,11 @@ module.exports = {
   getLead,
   updateLead,
   sendNotification,
+  getUser,
   getUsers,
+  addLeadComment,
   calcDeadline,
+  countWorkingDays,
   today,
   isDateBefore,
   isDeadlineDay,
