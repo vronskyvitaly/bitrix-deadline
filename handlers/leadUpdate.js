@@ -113,8 +113,10 @@ async function handleLeadUpdate(leadId) {
           const deadlineFormatted = bitrix.formatDate(prevState.deadline);
           const msg = `⛔ Лид #${leadId}: изменение дедлайна запрещено.\n` +
                       `Дедлайн можно изменить только в последний день срока — [b]${deadlineFormatted}[/b].\n\n` +
-                      `Если нужно продление раньше срока — обратитесь к руководителю.\n` +
-                      `[url=${leadUrl}]Открыть лид #${leadId}[/url]`;
+                      `Если нужно продление раньше срока:\n` +
+                      `1. [url=${leadUrl}]Откройте лид #${leadId}[/url]\n` +
+                      `2. Заполните поле [b]«Причина продления»[/b]\n` +
+                      `3. Обратитесь к руководителю за разрешением`;
           await bitrix.sendNotification(assignedUserId, msg).catch(console.error);
         }
         return;
