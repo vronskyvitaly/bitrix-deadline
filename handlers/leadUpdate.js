@@ -120,8 +120,34 @@ async function handleLeadUpdate(leadId) {
         return;
       }
 
-      // ✅ Последний день дедлайна — разрешаем
-      console.log(`✅ Дедлайн изменён в последний день — разрешено`);
+      // Последний день — требуем причину продления
+      if (!currentReason || currentReason.trim() === '') {
+        // ❌ Причина не указана — откатываем
+        console.log(`❌ Последний день дедлайна, причина не указана. Откатываем.`);
+        try {
+          await bitrix.updateLead(leadId, {
+            [config.fields.deadline]: prevState.deadline,
+          });
+        } catch (err) {
+          console.error('Ошибка при откате дедлайна:', err.message);
+        }
+
+        if (assignedUserId) {
+          const leadUrl = `${config.bitrix.url}/crm/lead/details/${leadId}/`;
+          const deadlineFormatted = bitrix.formatDate(prevState.deadline);
+          const msg = `⛔ Лид #${leadId}: изменение дедлайна отклонено.\n` +
+                      `Сегодня последний день срока — [b]${deadlineFormatted}[/b].\n\n` +
+                      `Чтобы продлить дедлайн:\n` +
+                      `1. [url=${leadUrl}]Откройте лид #${leadId}[/url]\n` +
+                      `2. Заполните поле [b]«Причина продления»[/b]\n` +
+                      `3. После этого измените дату дедлайна`;
+          await bitrix.sendNotification(assignedUserId, msg).catch(console.error);
+        }
+        return;
+      }
+
+      // ✅ Последний день + причина указана — разрешаем
+      console.log(`✅ Дедлайн изменён в последний день с причиной: "${currentReason}"`);
       await store.saveLeadState(leadId, {
         ...prevState,
         stageId: currentStage,
