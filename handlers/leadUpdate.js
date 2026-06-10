@@ -51,8 +51,9 @@ async function applyDeadlineExtension({ leadId, assignedUserId, prevState, curre
   let managerName = assignedUserId ? `ID ${assignedUserId}` : 'Менеджер';
   try {
     const user = await bitrix.getUser(assignedUserId);
+    console.log(`👤 getUser(${assignedUserId}):`, JSON.stringify(user));
     if (user) managerName = [user.NAME, user.LAST_NAME].filter(Boolean).join(' ') || managerName;
-  } catch {}
+  } catch (e) { console.error(`❌ getUser(${assignedUserId}) failed:`, e.message); }
 
   const prevFormatted = bitrix.formatDate(prevState.deadline);
   const newFormatted  = bitrix.formatDate(currentDeadline);
@@ -196,7 +197,7 @@ async function handleLeadUpdate(leadId) {
           try {
             const user = await bitrix.getUser(assignedUserId);
             if (user) managerName = [user.NAME, user.LAST_NAME].filter(Boolean).join(' ') || managerName;
-          } catch {}
+          } catch (e) { console.error(`❌ getUser(${assignedUserId}) failed:`, e.message); }
           const supervisorMsg = `⚠️ ${managerName} попытался перенести дедлайн по лиду #${leadId} раньше срока.\n` +
                                 `Текущий дедлайн: [b]${deadlineFormatted}[/b]\n` +
                                 `Изменение отклонено.\n` +
