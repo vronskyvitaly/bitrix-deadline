@@ -65,10 +65,68 @@ async function sendDeadlineReminders() {
   console.log('✅ Проверка дедлайнов завершена\n');
 }
 
+async function sendOverdueReminders() {
+  console.log('\n⏰ Запуск проверки просроченных дедлайнов...');
+
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  });
+
+  try {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm   = String(today.getMonth() + 1).padStart(2, '0');
+    const dd   = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    // Лиды у которых дедлайн уже прошёл (строго меньше сегодняшней даты)
+    const result = await pool.query(`
+      SELECT lead_id, stage_id, deadline
+      FROM lead_states
+      WHERE deadline < $1
+        AND stage_id = ANY($2)
+    `, [todayStr, config.managerStages]);
+
+    console.log(`📋 Найдено просроченных лидов (до ${todayStr}): ${result.rows.length}`);
+
+    for (const row of result.rows) {
+      try {
+        const lead = await bitrix.getLead(row.lead_id);
+        const assignedUserId = lead.ASSIGNED_BY_ID;
+        if (!assignedUserId) continue;
+
+        const leadUrl = `${config.bitrix.url}/crm/lead/details/${row.lead_id}/`;
+        const deadlineFormatted = bitrix.formatDate(row.deadline);
+
+        const msg = `⚠️ Лид #${row.lead_id} (${lead.TITLE || 'без названия'}) — срок дедлайна истёк!\n\n` +
+                    `⏰ Срок истёк: [b]${deadlineFormatted}[/b]\n\n` +
+                    `Чтобы перенести дедлайн:\n` +
+                    `1. [url=${leadUrl}]Откройте лид #${row.lead_id}[/url]\n` +
+                    `2. Заполните поле [b]«Причина продления»[/b]\n` +
+                    `3. После этого измените дату дедлайна`;
+
+        await bitrix.sendNotification(assignedUserId, msg);
+        console.log(`✅ Напоминание о просроченном дедлайне отправлено менеджеру ${assignedUserId} по лиду #${row.lead_id}`);
+      } catch (err) {
+        console.error(`❌ Ошибка отправки напоминания по лиду #${row.lead_id}:`, err.message);
+      }
+    }
+  } finally {
+    await pool.end();
+  }
+
+  console.log('✅ Проверка просроченных дедлайнов завершена\n');
+}
+
 function scheduleDeadlineReminders() {
   // Каждый день в 9:00 по Москве (UTC+3 = 06:00 UTC)
   cron.schedule('0 6 * * *', sendDeadlineReminders, { timezone: 'UTC' });
   console.log('⏰ Ежедневная проверка дедлайнов запланирована на 09:00 МСК');
+
+  // Каждый рабочий день в 10:00 по Москве (07:00 UTC) — напоминание о просроченных
+  cron.schedule('0 7 * * 1-5', sendOverdueReminders, { timezone: 'UTC' });
+  console.log('⏰ Ежедневная проверка просроченных дедлайнов запланирована на 10:00 МСК (пн–пт)');
 }
 
-module.exports = { scheduleDeadlineReminders, sendDeadlineReminders };
+module.exports = { scheduleDeadlineReminders, sendDeadlineReminders, sendOverdueReminders };

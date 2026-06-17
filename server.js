@@ -76,6 +76,12 @@ app.post('/admin/run-reminders', async (req, res) => {
   sendDeadlineReminders().catch(console.error);
 });
 
+app.post('/admin/run-overdue-reminders', async (req, res) => {
+  const { sendOverdueReminders } = require('./jobs/deadlineReminder');
+  res.json({ ok: true, message: 'Запущено' });
+  sendOverdueReminders().catch(console.error);
+});
+
 // ─────────────────────────────────────────────
 // Просмотр данных в БД (последние 50 лидов)
 // ─────────────────────────────────────────────
