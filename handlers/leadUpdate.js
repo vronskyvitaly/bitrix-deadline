@@ -105,6 +105,13 @@ async function handleLeadUpdate(leadId) {
   const currentReason   = lead[config.fields.extendReason] || '';
   const assignedUserId  = lead.ASSIGNED_BY_ID;
 
+  // Лид в спаме или другой игнорируемой стадии — ничего не делаем
+  if (config.ignoredStages.includes(currentStage)) {
+    console.log(`⏭️  Лид #${leadId} в стадии "${currentStage}" (игнорируется) — пропускаем`);
+    await store.deleteLeadState(leadId).catch(() => {});
+    return;
+  }
+
   // Читаем предыдущее состояние из хранилища
   const prevState = await store.getLeadState(leadId);
 

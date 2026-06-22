@@ -14,6 +14,9 @@ const config = {
   // Формат: массив строк с ID стадий
   managerStages: (process.env.MANAGER_STAGES || '').split(',').map(s => s.trim()).filter(Boolean),
 
+  // Стадии-исключения: дедлайны не ставятся, уведомления не шлются
+  ignoredStages: (process.env.IGNORED_STAGES || 'UC_D5OI8U,JUNK').split(',').map(s => s.trim()).filter(Boolean),
+
   // Названия кастомных полей лида
   fields: {
     deadline: process.env.FIELD_DEADLINE || 'UF_CRM_LEAD_DEADLINE',
