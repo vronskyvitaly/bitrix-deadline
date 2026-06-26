@@ -15,7 +15,7 @@ const config = {
   managerStages: (process.env.MANAGER_STAGES || '').split(',').map(s => s.trim()).filter(Boolean),
 
   // Стадии-исключения: дедлайны не ставятся, уведомления не шлются
-  ignoredStages: (process.env.IGNORED_STAGES || 'UC_D5OI8U,JUNK,UC_UNRASO,UC_FQY82C,UC_T56DOM').split(',').map(s => s.trim()).filter(Boolean),
+  ignoredStages: (process.env.IGNORED_STAGES || 'UC_D5OI8U,JUNK,UC_UNRASO,UC_FQY82C,UC_T56DOM,CONVERTED').split(',').map(s => s.trim()).filter(Boolean),
 
   // Названия кастомных полей лида
   fields: {

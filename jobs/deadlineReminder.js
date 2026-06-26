@@ -1,33 +1,39 @@
 /**
- * Ежедневное уведомление о дедлайне
+ * Ежедневные уведомления о дедлайнах
  *
- * Запускается каждое утро в 9:00 по московскому времени.
- * Находит все лиды в менеджерских стадиях у которых дедлайн СЕГОДНЯ
- * и отправляет уведомление ответственному менеджеру.
+ * 09:00 МСК — напоминание если дедлайн сегодня
+ * 10:00 МСК (пн–пт) — напоминание если дедлайн уже просрочен
+ *
+ * Перед отправкой проверяем актуальную стадию лида в Bitrix24.
+ * Если лид в спаме, сделке или другой игнорируемой стадии — уведомление не шлётся,
+ * запись из БД очищается.
  */
 
 const cron = require('node-cron');
 const { Pool } = require('pg');
 const bitrix = require('../services/bitrix');
+const store = require('../db/store');
 const config = require('../config');
+
+function getPool() {
+  return new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  });
+}
 
 async function sendDeadlineReminders() {
   console.log('\n⏰ Запуск ежедневной проверки дедлайнов...');
 
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  });
+  const pool = getPool();
 
   try {
-    // Текущая дата в формате YYYY-MM-DD
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm   = String(today.getMonth() + 1).padStart(2, '0');
     const dd   = String(today.getDate()).padStart(2, '0');
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
-    // Ищем лиды у которых дедлайн сегодня и стадия менеджерская
     const result = await pool.query(`
       SELECT lead_id, stage_id, deadline
       FROM lead_states
@@ -40,6 +46,14 @@ async function sendDeadlineReminders() {
     for (const row of result.rows) {
       try {
         const lead = await bitrix.getLead(row.lead_id);
+
+        // Проверяем актуальную стадию — лид мог переехать в спам или стать сделкой
+        if (config.ignoredStages.includes(lead.STATUS_ID)) {
+          console.log(`⏭️  Лид #${row.lead_id} сейчас в стадии "${lead.STATUS_ID}" (игнорируется) — очищаем БД, пропускаем`);
+          await store.deleteLeadState(row.lead_id).catch(() => {});
+          continue;
+        }
+
         const assignedUserId = lead.ASSIGNED_BY_ID;
         if (!assignedUserId) continue;
 
@@ -68,10 +82,7 @@ async function sendDeadlineReminders() {
 async function sendOverdueReminders() {
   console.log('\n⏰ Запуск проверки просроченных дедлайнов...');
 
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  });
+  const pool = getPool();
 
   try {
     const today = new Date();
@@ -80,7 +91,6 @@ async function sendOverdueReminders() {
     const dd   = String(today.getDate()).padStart(2, '0');
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
-    // Лиды у которых дедлайн уже прошёл (строго меньше сегодняшней даты)
     const result = await pool.query(`
       SELECT lead_id, stage_id, deadline
       FROM lead_states
@@ -93,6 +103,14 @@ async function sendOverdueReminders() {
     for (const row of result.rows) {
       try {
         const lead = await bitrix.getLead(row.lead_id);
+
+        // Проверяем актуальную стадию — лид мог переехать в спам или стать сделкой
+        if (config.ignoredStages.includes(lead.STATUS_ID)) {
+          console.log(`⏭️  Лид #${row.lead_id} сейчас в стадии "${lead.STATUS_ID}" (игнорируется) — очищаем БД, пропускаем`);
+          await store.deleteLeadState(row.lead_id).catch(() => {});
+          continue;
+        }
+
         const assignedUserId = lead.ASSIGNED_BY_ID;
         if (!assignedUserId) continue;
 
